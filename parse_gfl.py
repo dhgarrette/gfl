@@ -27,6 +27,7 @@ tokens = lines[0].split()
 code = '\n'.join(lines[1:])
 try:
     parse = gfl_parser.parse(tokens, code, check_semantics=True)
+    #view.desktop_open(view.draw(parse, 'x'))
     parseJ = parse.to_json()
     print(json.dumps(parseJ), sep='\t')
 except gfl_parser.GFLError:
