@@ -16,5 +16,7 @@ project/plugins/project/
 .cache
 .settings
 
-
+data/
+gfl_syntax/
+parsimonious/
 

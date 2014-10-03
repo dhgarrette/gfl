@@ -1,3 +1,5 @@
+import com.typesafe.sbt.SbtStartScript
+
 name := "gfl"
 
 version := "0.0.1"
@@ -16,5 +18,8 @@ libraryDependencies ++= Seq(
    "com.novocode" % "junit-interface" % "0.10" % "test"
   )
 
-scalacOptions ++= Seq("-deprecation")
+seq(SbtStartScript.startScriptForClassesSettings: _*)
 
+SbtStartScript.stage in Compile := Unit
+
+scalacOptions ++= Seq("-deprecation")
