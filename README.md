@@ -14,7 +14,11 @@ gfl
 
 ## Usage
 
-    import dhg.gfl.Gfl
+    import dhg.util.CollectionUtil._
+    import dhg.util.FileUtil._
+    import scalaz._, Scalaz._
+
+    import dhg.gfl.Gfl.fromAnnotationJson
     val NonHiddenFile = "[^.].*".r
     
     val sentencesByLanguage = 
