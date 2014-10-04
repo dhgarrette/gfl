@@ -1,7 +1,13 @@
 GFL-Scala
-===========
+=========
 
 This is a scala interface to the CMU GFL parser, originally written in python.
+
+
+## FUDG
+
+http://www.ark.cs.cmu.edu/FUDG/
+https://github.com/brendano/gfl_syntax/blob/master/scripts/FUDG_JSON.md
 
 
 ## Including GFL-Scala as a dependency
@@ -15,7 +21,6 @@ In `build.sbt`:
     
     libraryDependencies += "dhg" % "gfl-scala_2.11" % "0.0.1-SNAPSHOT"
         
-
 
 ## Setup Dependencies
 
@@ -76,3 +81,4 @@ Getting sentence information:
      */
     val depTree = sentence.depTree
     dhg.util.viz.TreeViz.drawTree(depTree)
+
