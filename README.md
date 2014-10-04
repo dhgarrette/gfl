@@ -1,6 +1,12 @@
 gfl
 ===========
 
+## FUDG
+
+http://www.ark.cs.cmu.edu/FUDG/
+https://github.com/brendano/gfl_syntax/blob/master/scripts/FUDG_JSON.md  
+
+
 
 ## Setup Dependencies
 
