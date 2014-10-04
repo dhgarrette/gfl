@@ -1,5 +1,20 @@
-gfl
+GFL-Scala
 ===========
+
+This is a scala interface to the CMU GFL parser, originally written in python.
+
+
+## Including GFL-Scala as a dependency
+
+In `build.sbt`:
+
+    resolvers ++= Seq(
+      "dhg releases repo" at "http://www.cs.utexas.edu/~dhg/maven-repository/releases",
+      "dhg snapshot repo" at "http://www.cs.utexas.edu/~dhg/maven-repository/snapshots"
+    )
+    
+    libraryDependencies += "dhg" % "gfl-scala_2.11" % "0.0.1-SNAPSHOT"
+        
 
 
 ## Setup Dependencies

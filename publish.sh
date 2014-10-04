@@ -1,6 +1,6 @@
 #!/bin/bash
 
-projectname=gfl
+projectname=gfl-scala
 version_len=5
 
 rm -rf target/scala-2.11/${projectname}_2.11-*
