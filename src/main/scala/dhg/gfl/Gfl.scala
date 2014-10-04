@@ -52,9 +52,9 @@ object Gfl {
        */
       val nodes: Map[String, Node] = fudgJson.field("nodes").get.array.get.map(_.string.get).mapTo { nodeName => Node(nodeName, n2w.getOrElse(nodeName, Vector.empty)) }.toMap
 
-      val deps: Vector[Dep] = fudgJson.field("deps").get.array.get.map(_.array.get).map { case List(parent, child, _) => Dep(nodes(parent.string.get), nodes(child.string.get)) }.toVector
+      val deps: Vector[Dep] = fudgJson.field("deps").get.array.get.map(_.array.get).map { case List(parent, child, label) => Dep(nodes(parent.string.get), nodes(child.string.get), label.string.filter(_ != "null")) }.toVector
 
-      Sentence(tokens, nodes, deps)
+      Sentence(tokens.values.toVector.sortBy(_.index), nodes, deps)
     }
   }
 
@@ -100,13 +100,15 @@ object Gfl {
     //    val firstSentence = english.head
     //    println(firstSentence.deps.head)
 
-    TreeViz.drawTree(
-      fromGfl(
-        "The man walks a big dog .",
-        """
+    val sentence = fromGfl(
+      "The man walks a big dog .",
+      """
         (The man walks < (a dog*))  .
         big > dog
-        """).get.depTree)
+        (The man)
+        """).get
+    sentence.brackets foreach println
+    TreeViz.drawTree(sentence.depTree)
 
   }
 
@@ -116,20 +118,43 @@ object Gfl {
 
 case class Token(token: String, index: Int)
 case class Node(name: String, tokens: Vector[Token])
-case class Dep(parent: Node, child: Node)
-case class Sentence(tokens: Map[String, Token], nodes: Map[String, Node], deps: Vector[Dep]) {
-  def depTrees: Vector[DepTree] = {
-    val children = deps.map { case Dep(p, c) => (p.name, c.name) }.groupByKey
+case class Dep(parent: Node, child: Node, label: Option[String])
+case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], deps: Vector[Dep]) {
+
+  lazy val depTrees: Vector[DepTree] = {
+    val children = deps.map { case Dep(p, c, l) => (p.name, c.name) }.groupByKey
     def makeTree(nodeName: String): DepTree = DepTree(nodes(nodeName), children.getOrElse(nodeName, Vector.empty).map(makeTree)) // .sortBy(_.tokens.map(_.index).min)
     val heads = (nodes.keySet -- children.values.flatten).toVector
     heads.map(makeTree)
   }
+
   def depTree: DepTree = depTrees match {
     case Vector(t) => t
     case trees => DepTree(Node("<ROOT>", Vector()), trees)
   }
+
+  /**
+   * Get all brackets inferred from this annotation.
+   * A "bracket" is a pair (start,end) such that `sentence.tokens.slice(start,end)`
+   * is a bracketed unit.
+   */
+  def brackets: Vector[(Int, Int)] = {
+    def treeBrackets(t: DepTree): Vector[(Int, Int)] = {
+      val childBrackets = t.children.flatMap(treeBrackets)
+      val indicesCovered = t.wordIndicesCovered
+      if (indicesCovered.size > 1 && indicesCovered.max - indicesCovered.min == indicesCovered.size - 1) { // a contiguous span of tokens
+        (indicesCovered.min, indicesCovered.max + 1) +: childBrackets
+      }
+      else {
+        childBrackets
+      }
+    }
+    depTrees.flatMap(treeBrackets)
+  }
+
 }
 
 case class DepTree(node: Node, children: Vector[DepTree]) extends VizTree {
   def label = node.name
+  lazy val wordIndicesCovered: Set[Int] = node.tokens.map(_.index).toSet ++ children.flatMap(_.wordIndicesCovered)
 }
