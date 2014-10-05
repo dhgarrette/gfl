@@ -14,6 +14,7 @@ import dhg.util.viz.TreeViz
  * http://www.ark.cs.cmu.edu/FUDG/
  * https://github.com/brendano/gfl_syntax/blob/master/scripts/FUDG_JSON.md
  *
+ * @author Dan Garrette (dhg@cs.utexas.edu)
  */
 object Gfl {
 
@@ -142,7 +143,7 @@ case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], deps: Vecto
     def treeBrackets(t: DepTree): Vector[(Int, Int)] = {
       val childBrackets = t.children.flatMap(treeBrackets)
       val indicesCovered = t.wordIndicesCovered
-      if (indicesCovered.size > 1 && indicesCovered.max - indicesCovered.min == indicesCovered.size - 1) { // a contiguous span of tokens
+      if (indicesCovered.size > 1 && indicesCovered.size < tokens.size && indicesCovered.max - indicesCovered.min == indicesCovered.size - 1) { // a contiguous span of tokens
         (indicesCovered.min, indicesCovered.max + 1) +: childBrackets
       }
       else {
