@@ -51,11 +51,23 @@ object Gfl {
        *   "MW(still_at_it)" -> Node("MW(still_at_it)", Vector(Token("still", 2), Token("at", 3), Token("it", 4))),
        *   "FE3"             -> Node("FE3))
        */
-      val nodes: Map[String, Node] = fudgJson.field("nodes").get.array.get.map(_.string.get).mapTo { nodeName => Node(nodeName, n2w.getOrElse(nodeName, Vector.empty)) }.toMap
+      val WordRe = """W\((.+)\)""".r
+      val MweRe = """MW\((.+)\)""".r
+      val FeRe = """FE(\d+)""".r
+      val nodes: Map[String, Node] = fudgJson.field("nodes").get.array.get.map(_.string.get).mapTo { nodeName =>
+        val typ = nodeName match {
+          case WordRe(_) => WordGflNodeType
+          case MweRe(_) => MweGflNodeType
+          case FeRe(_) => FeGflNodeType
+        }
+        Node(nodeName, n2w.getOrElse(nodeName, Vector.empty), typ)
+      }.toMap
 
-      val deps: Vector[Dep] = fudgJson.field("deps").get.array.get.map(_.array.get).map { case List(parent, child, label) => Dep(nodes(parent.string.get), nodes(child.string.get), label.string.filter(_ != "null")) }.toVector
+      val edges: Vector[Edge] = fudgJson.field("node_edges").get.array.get.map(_.array.get).map {
+        case List(parent, child, label) => Edge(nodes(parent.string.get), nodes(child.string.get), label.string.filter(_ != "null"))
+      }.toVector
 
-      Sentence(tokens.values.toVector.sortBy(_.index), nodes, deps)
+      Sentence(tokens.values.toVector.sortBy(_.index), nodes, edges)
     }
   }
 
@@ -101,15 +113,20 @@ object Gfl {
     //    val firstSentence = english.head
     //    println(firstSentence.deps.head)
 
+    //    val sentence = fromGfl(
+    //      "The man walks a big dog .",
+    //      """
+    //        (The man walks < (a dog*))  .
+    //        big > dog
+    //        """).get
     val sentence = fromGfl(
-      "The man walks a big dog .",
+      "the~1 man~2 walks~3",
       """
-        (The man walks < (a dog*))  .
-        big > dog
-        (The man)
+        man~2 > walks~3
+        the~1
         """).get
     sentence.brackets foreach println
-    TreeViz.drawTree(sentence.depTree)
+    TreeViz.drawTree(sentence.gflTree)
 
   }
 
@@ -118,44 +135,55 @@ object Gfl {
 //
 
 case class Token(token: String, index: Int)
-case class Node(name: String, tokens: Vector[Token])
-case class Dep(parent: Node, child: Node, label: Option[String])
-case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], deps: Vector[Dep]) {
+case class Node(name: String, tokens: Vector[Token], typ: GflNodeType)
+case class Edge(parent: Node, child: Node, label: Option[String])
+case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vector[Edge]) {
 
-  lazy val depTrees: Vector[DepTree] = {
-    val children = deps.map { case Dep(p, c, l) => (p.name, c.name) }.groupByKey
-    def makeTree(nodeName: String): DepTree = DepTree(nodes(nodeName), children.getOrElse(nodeName, Vector.empty).map(makeTree)) // .sortBy(_.tokens.map(_.index).min)
+  lazy val gflTrees: Vector[GflTree] = {
+    val children = edges.map { case Edge(p, c, l) => (p.name, c.name) }.groupByKey
+    def makeTree(nodeName: String): GflTree = GflTree(nodes(nodeName), children.getOrElse(nodeName, Vector.empty).map(makeTree)) // .sortBy(_.tokens.map(_.index).min)
     val heads = (nodes.keySet -- children.values.flatten).toVector
     heads.map(makeTree)
   }
 
-  def depTree: DepTree = depTrees match {
+  def gflTree: GflTree = gflTrees match {
     case Vector(t) => t
-    case trees => DepTree(Node("<ROOT>", Vector()), trees)
+    case trees => GflTree(Node("<ROOT>", Vector(), FeGflNodeType), trees)
   }
 
   /**
    * Get all brackets inferred from this annotation.
+   *
    * A "bracket" is a pair (start,end) such that `sentence.tokens.slice(start,end)`
    * is a bracketed unit.
+   *
+   * A bracket is an FE or MWE node that covers a contiguous span of words.
    */
-  def brackets: Vector[(Int, Int)] = {
-    def treeBrackets(t: DepTree): Vector[(Int, Int)] = {
-      val childBrackets = t.children.flatMap(treeBrackets)
-      val indicesCovered = t.wordIndicesCovered
-      if (indicesCovered.size > 1 && indicesCovered.size < tokens.size && indicesCovered.max - indicesCovered.min == indicesCovered.size - 1) { // a contiguous span of tokens
-        (indicesCovered.min, indicesCovered.max + 1) +: childBrackets
+  lazy val brackets: Vector[(Int, Int)] = {
+    def treeBrackets(t: GflTree): Vector[(Int, Int)] = {
+      val indicesCovered = t.node.typ match {
+        case FeGflNodeType => Some(t.indicesCoveredRecursively)
+        case MweGflNodeType => Some(t.node.tokens.map(_.index).toSet)
+        case _ => None
       }
-      else {
-        childBrackets
-      }
+      val bracket = indicesCovered.collect { case ic if indicesAreSpan(ic) => (ic.min, ic.max + 1) }
+      t.children.flatMap(treeBrackets) ++ bracket
     }
-    depTrees.flatMap(treeBrackets)
+    gflTrees.flatMap(treeBrackets)
+  }
+
+  private def indicesAreSpan(indicesCovered: Set[Int]) = {
+    indicesCovered.size > 1 && indicesCovered.size < tokens.size && indicesCovered.max - indicesCovered.min == indicesCovered.size - 1
   }
 
 }
 
-case class DepTree(node: Node, children: Vector[DepTree]) extends VizTree {
+case class GflTree(node: Node, children: Vector[GflTree]) extends VizTree {
   def label = node.name
-  lazy val wordIndicesCovered: Set[Int] = node.tokens.map(_.index).toSet ++ children.flatMap(_.wordIndicesCovered)
+  lazy val indicesCoveredRecursively: Set[Int] = node.tokens.map(_.index).toSet ++ children.flatMap(_.indicesCoveredRecursively)
 }
+
+sealed trait GflNodeType
+case object WordGflNodeType extends GflNodeType
+case object MweGflNodeType extends GflNodeType
+case object FeGflNodeType extends GflNodeType

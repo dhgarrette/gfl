@@ -17,8 +17,32 @@ class GflTests {
       big > dog
       (The man)
       """).get
-    //dhg.util.viz.TreeViz.drawTree(sentence.depTree)
-    assertEquals(Vector((0, 2), (0, 6), (2, 6), (3, 6), (4, 6)), sentence.brackets.sorted)
+    //dhg.util.viz.TreeViz.drawTree(sentence.gflTree)
+    assertEquals(Vector((0, 2), (0, 6), (3,6)), sentence.brackets.sorted)
+  }
+
+  @Test
+  def test_fromGfl_6 {
+    val sentence = Gfl.fromGfl(
+      "The man walks a big dog .",
+      """
+      (The man walks a > [big dog])  .
+      (The man)
+      """).get
+    //dhg.util.viz.TreeViz.drawTree(sentence.gflTree)
+    assertEquals(Vector((0, 2), (0, 6), (4,6)), sentence.brackets.sorted)
+  }
+
+  @Test
+  def test_fromGfl_5 {
+    val sentence = Gfl.fromGfl(
+      "The man walks a big dog .",
+      """
+      (The man walks < (a dog*))  .
+      (The man)
+      """).get
+    //dhg.util.viz.TreeViz.drawTree(sentence.gflTree)
+    assertEquals(Vector((0, 2)), sentence.brackets.sorted)
   }
 
   @Test
@@ -29,8 +53,8 @@ class GflTests {
       (The man walks < (a dog))  .
       big > dog
       """).get
-    //dhg.util.viz.TreeViz.drawTree(sentence.depTree)
-    assertEquals(Vector((0, 6), (2, 6), (3, 6), (4, 6)), sentence.brackets.sorted)
+    //dhg.util.viz.TreeViz.drawTree(sentence.gflTree)
+    assertEquals(Vector((0, 6), (3,6)), sentence.brackets.sorted)
   }
 
   @Test
@@ -40,7 +64,7 @@ class GflTests {
       """
       b > c
       """).get
-    //dhg.util.viz.TreeViz.drawTree(sentence.depTree)
+    //dhg.util.viz.TreeViz.drawTree(sentence.gflTree)
     assertEquals(Vector(), sentence.brackets.sorted)
   }
 
@@ -52,8 +76,8 @@ class GflTests {
       a > b
       b > c
       """).get
-    //dhg.util.viz.TreeViz.drawTree(sentence.depTree)
-    assertEquals(Vector((0, 2)), sentence.brackets.sorted)
+    //dhg.util.viz.TreeViz.drawTree(sentence.gflTree)
+    assertEquals(Vector(), sentence.brackets.sorted)
   }
 
 }
