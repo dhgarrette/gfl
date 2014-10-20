@@ -10,7 +10,7 @@ class GflTests {
 
   @Test
   def test_fromGfl_1 {
-    val sentence = Gfl.fromGfl(
+    val sentence = Fudg.fromGfl(
       "The man walks a big dog .",
       """
       (The man walks < (a dog*))  .
@@ -18,24 +18,24 @@ class GflTests {
       (The man)
       """).get
     //dhg.util.viz.TreeViz.drawTree(sentence.gflTree)
-    assertEquals(Vector((0, 2), (0, 6), (3,6)), sentence.brackets.sorted)
+    assertEquals(Vector((0, 2), (0, 6), (3, 6)), sentence.brackets.sorted)
   }
 
   @Test
   def test_fromGfl_6 {
-    val sentence = Gfl.fromGfl(
+    val sentence = Fudg.fromGfl(
       "The man walks a big dog .",
       """
       (The man walks a > [big dog])  .
       (The man)
       """).get
     //dhg.util.viz.TreeViz.drawTree(sentence.gflTree)
-    assertEquals(Vector((0, 2), (0, 6), (4,6)), sentence.brackets.sorted)
+    assertEquals(Vector((0, 2), (0, 6), (4, 6)), sentence.brackets.sorted)
   }
 
   @Test
   def test_fromGfl_5 {
-    val sentence = Gfl.fromGfl(
+    val sentence = Fudg.fromGfl(
       "The man walks a big dog .",
       """
       (The man walks < (a dog*))  .
@@ -47,19 +47,19 @@ class GflTests {
 
   @Test
   def test_fromGfl_2 {
-    val sentence = Gfl.fromGfl(
+    val sentence = Fudg.fromGfl(
       "The man walks a big dog .",
       """
       (The man walks < (a dog))  .
       big > dog
       """).get
     //dhg.util.viz.TreeViz.drawTree(sentence.gflTree)
-    assertEquals(Vector((0, 6), (3,6)), sentence.brackets.sorted)
+    assertEquals(Vector((0, 6), (3, 6)), sentence.brackets.sorted)
   }
 
   @Test
   def test_fromGfl_3 {
-    val sentence = Gfl.fromGfl(
+    val sentence = Fudg.fromGfl(
       "a b c",
       """
       b > c
@@ -70,7 +70,7 @@ class GflTests {
 
   @Test
   def test_fromGfl_4 {
-    val sentence = Gfl.fromGfl(
+    val sentence = Fudg.fromGfl(
       "a b c",
       """
       a > b
@@ -78,6 +78,24 @@ class GflTests {
       """).get
     //dhg.util.viz.TreeViz.drawTree(sentence.gflTree)
     assertEquals(Vector(), sentence.brackets.sorted)
+  }
+
+  @Test
+  def test_isSemanticallyValid {
+    val s1 = Fudg.fromGfl(
+      "The man walks a big dog .",
+      """
+      (The man walks < (a dog))  .
+      big > dog
+      
+      """).get
+    //dhg.util.viz.TreeViz.drawTree(s1.fudgTree)
+    assertFalse(Fudg.isSemanticallyValid(s1.addEdge(2, 4).edges))
+    assertFalse(Fudg.isSemanticallyValid(s1.addEdge(4, 2).edges))
+    
+    //    val s2 = s1.addEdge(Edge(s1.node(1), s1.node(0), None))
+    //    dhg.util.viz.TreeViz.drawTree(s2.fudgTree)
+    //    assertEquals(Vector((0, 6), (3,6)), s2.brackets.sorted)
   }
 
 }

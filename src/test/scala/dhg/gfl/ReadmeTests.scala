@@ -1,41 +1,19 @@
-GFL-Scala
-=========
+package dhg.gfl
 
-This is a scala interface to the CMU GFL parser, originally written in python.
+import org.junit.Assert._
+import org.junit.Test
 
-## FUDG
+/**
+ * @author Dan Garrette (dhg@cs.utexas.edu)
+ */
+class ReadmeTests {
 
-http://www.ark.cs.cmu.edu/FUDG/
-https://github.com/brendano/gfl_syntax/blob/master/scripts/FUDG_JSON.md
+  @Test
+  def test() {
 
-
-## Including GFL-Scala as a dependency
-
-In `build.sbt`:
-
-    resolvers ++= Seq(
-      "dhg releases repo" at "http://www.cs.utexas.edu/~dhg/maven-repository/releases",
-      "dhg snapshot repo" at "http://www.cs.utexas.edu/~dhg/maven-repository/snapshots"
-    )
-    
-    libraryDependencies += "dhg" % "gfl-scala_2.11" % "0.0.1-SNAPSHOT"
-        
-
-## Setup Dependencies
-
-    git clone git@github.com:brendano/gfl_syntax.git
-    git clone git@github.com:erikrose/parsimonious.git
-
-    export PYTHONPATH=$PYTHONPATH:$(pwd)/gfl_syntax/scripts
-    export PYTHONPATH=$PYTHONPATH:$(pwd)/gfl_syntax/parser
-    export PYTHONPATH=$PYTHONPATH:$(pwd)/parsimonious/
-
-
-## Usage
-
-API: http://www.cs.utexas.edu/~dhg/maven-repository/snapshots/dhg/gfl-scala_2.11/0.0.1-SNAPSHOT/api/
-
-Load a single sentence:
+    /*
+		 * Load a single sentence:
+		 */
 
     import dhg.gfl.Fudg._
 
@@ -48,7 +26,9 @@ Load a single sentence:
     val sentenceOption: Option[Sentence] = fromGfl(text, annotation)
     val sentence = sentenceOption.get
 
-Read annotation from files:
+    /*
+     * Read annotation from files:
+     */
 
     import dhg.util.CollectionUtil._
     import dhg.util.FileUtil._
@@ -65,7 +45,9 @@ Read annotation from files:
     val english = sentencesByLanguage("eng")
     val firstSentence = english.head
 
-Getting sentence information:
+    /*
+     * Getting sentence information:
+     */
 
     sentence.tokens
     sentence.nodes
@@ -84,3 +66,6 @@ Getting sentence information:
     val fudgTree = sentence.fudgTree
     dhg.util.viz.TreeViz.drawTree(fudgTree)
 
+  }
+
+}

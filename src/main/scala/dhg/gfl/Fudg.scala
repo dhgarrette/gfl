@@ -9,14 +9,14 @@ import Scalaz._
 import argonaut._
 import Argonaut._
 import dhg.util.viz.TreeViz
+import scala.annotation.tailrec
 
 /**
- * http://www.ark.cs.cmu.edu/FUDG/
- * https://github.com/brendano/gfl_syntax/blob/master/scripts/FUDG_JSON.md
+ * This is a scala interface to the CMU GFL parser, originally written in python.
  *
  * @author Dan Garrette (dhg@cs.utexas.edu)
  */
-object Gfl {
+object Fudg {
 
   def fromGfl(tokens: Vector[String], gfl: String): Option[Sentence] = {
     fromGfl(tokens.mkString(" "), gfl)
@@ -56,9 +56,9 @@ object Gfl {
       val FeRe = """FE(\d+)""".r
       val nodes: Map[String, Node] = fudgJson.field("nodes").get.array.get.map(_.string.get).mapTo { nodeName =>
         val typ = nodeName match {
-          case WordRe(_) => WordGflNodeType
-          case MweRe(_) => MweGflNodeType
-          case FeRe(_) => FeGflNodeType
+          case WordRe(_) => WordFudgNodeType
+          case MweRe(_) => MweFudgNodeType
+          case FeRe(_) => FeFudgNodeType
         }
         Node(nodeName, n2w.getOrElse(nodeName, Vector.empty), typ)
       }.toMap
@@ -100,90 +100,56 @@ object Gfl {
     }).toMap
   }
 
-  def main(args: Array[String]): Unit = {
-
-    //    val NonHiddenFile = "[^.].*".r
-    //
-    //    val sentencesByLanguage =
-    //      File("data/gfl").listFilesRecursive(NonHiddenFile).flatMap { f =>
-    //        f.readLines.map(fromAnnotationJson)
-    //      }.reduce(_ |+| _)
-    //
-    //    val english = sentencesByLanguage("eng")
-    //    val firstSentence = english.head
-    //    println(firstSentence.deps.head)
-
-    //    val sentence = fromGfl(
-    //      "The man walks a big dog .",
-    //      """
-    //        (The man walks < (a dog*))  .
-    //        big > dog
-    //        """).get
-    val sentence = fromGfl(
-      "the~1 man~2 walks~3",
-      """
-        man~2 > walks~3
-        the~1
-        """).get
-    sentence.brackets foreach println
-    TreeViz.drawTree(sentence.gflTree)
-
-  }
-
-}
-
-//
-
-case class Token(token: String, index: Int)
-case class Node(name: String, tokens: Vector[Token], typ: GflNodeType)
-case class Edge(parent: Node, child: Node, label: Option[String])
-case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vector[Edge]) {
-
-  lazy val gflTrees: Vector[GflTree] = {
-    val children = edges.map { case Edge(p, c, l) => (p.name, c.name) }.groupByKey
-    def makeTree(nodeName: String): GflTree = GflTree(nodes(nodeName), children.getOrElse(nodeName, Vector.empty).map(makeTree)) // .sortBy(_.tokens.map(_.index).min)
-    val heads = (nodes.keySet -- children.values.flatten).toVector
-    heads.map(makeTree)
-  }
-
-  def gflTree: GflTree = gflTrees match {
-    case Vector(t) => t
-    case trees => GflTree(Node("<ROOT>", Vector(), FeGflNodeType), trees)
-  }
-
   /**
-   * Get all brackets inferred from this annotation.
+   * Check whether this set of edges is valid
    *
-   * A "bracket" is a pair (start,end) such that `sentence.tokens.slice(start,end)`
-   * is a bracketed unit.
-   *
-   * A bracket is an FE or MWE node that covers a contiguous span of words.
+   * <code>
+   *   def graph_semantics_check(parse):
+   *   """Do checks on the final parse graph -- these are linguistic-level checks,
+   *   not graph definition checks."""
+   *   # Check tree constraint
+   *   for n in parse.nodes:
+   *     outbounds = [(h,c,l) for h,c,l in parse.node_edges if c==n and l is None]
+   *     if len(outbounds) > 1:
+   *       raise InvalidGraph("Violates tree constraint: node {} has {} outbound edges: {}".format(
+   *         repr(n), len(outbounds), repr(outbounds)))
+   * <code>
    */
-  lazy val brackets: Vector[(Int, Int)] = {
-    def treeBrackets(t: GflTree): Vector[(Int, Int)] = {
-      val indicesCovered = t.node.typ match {
-        case FeGflNodeType => Some(t.indicesCoveredRecursively)
-        case MweGflNodeType => Some(t.node.tokens.map(_.index).toSet)
-        case _ => None
-      }
-      val bracket = indicesCovered.collect { case ic if indicesAreSpan(ic) => (ic.min, ic.max + 1) }
-      t.children.flatMap(treeBrackets) ++ bracket
+  def isSemanticallyValid(edges: Vector[Edge], throwOnFalse: Boolean = false): Boolean = {
+    val parents = edges.collect { case Edge(parent, child, None) => child -> parent }.groupByKey
+    for ((child, parents) <- parents) { println(f"${child.name} -> {${parents.map(_.name)}}") }; println
+
+    val sb = new StringBuilder
+
+    val multipleParents = parents.filter(_._2.size > 1)
+    multipleParents.foreach {
+      case (child, parents) =>
+        sb.append(f"        node $child has multiple parents: $parents\n")
     }
-    gflTrees.flatMap(treeBrackets)
+
+    val cycles = findCycle(edges.collect { case Edge(parent, child, _) => (parent, child) })
+    cycles.foreach { cycle =>
+      sb.append(f"        cycle found involving nodes: ${cycles.mkString(", ")}\n")
+    }
+
+    if (throwOnFalse)
+      throw new RuntimeException(f"Tree constraint violations found:\n" + sb)
+    sb.isEmpty
   }
 
-  private def indicesAreSpan(indicesCovered: Set[Int]) = {
-    indicesCovered.size > 1 && indicesCovered.size < tokens.size && indicesCovered.max - indicesCovered.min == indicesCovered.size - 1
+  @tailrec final def findCycle(allLinks: Vector[(Node, Node)]): Vector[Set[Node]] = {
+    println(allLinks.map{case (Node(n1,_,_), Node(n2,_,_)) => f"$n1 -> $n2"}.mkString(", "))
+    allLinks match {
+      case (a, b) +: otherLinks =>
+        if (allLinks.contains(b -> a)) {
+          Vector(Set(b, a))
+        }
+        else {
+          val linkedToByB = otherLinks.collect { case (`b`, c) => c }
+          findCycle(otherLinks ++ linkedToByB.map(a -> _))
+        }
+      case _ => Vector()
+    }
   }
 
 }
-
-case class GflTree(node: Node, children: Vector[GflTree]) extends VizTree {
-  def label = node.name
-  lazy val indicesCoveredRecursively: Set[Int] = node.tokens.map(_.index).toSet ++ children.flatMap(_.indicesCoveredRecursively)
-}
-
-sealed trait GflNodeType
-case object WordGflNodeType extends GflNodeType
-case object MweGflNodeType extends GflNodeType
-case object FeGflNodeType extends GflNodeType
