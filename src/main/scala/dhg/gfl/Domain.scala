@@ -20,19 +20,14 @@ case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vect
   private val tokenNodes: Map[Token, Node] = nodes.values.collect { case node @ Node(name, Vector(token @ Token(word, index)), WordFudgNodeType) => (token, node) }.toMap
 
   /**
-   * The collection of underspecified dependency trees representing this
-   * sentence.
+   * The underspecified dependency trees representing this sentence.
    */
-  lazy val fudgTrees: Vector[FudgTree] = {
-    val children = edges.map { case Edge(p, c, l) => (p.name, c.name) }.groupByKey
-    def makeTree(nodeName: String): FudgTree = FudgTree(nodes(nodeName), children.getOrElse(nodeName, Vector.empty).map(makeTree)) // .sortBy(_.tokens.map(_.index).min)
-    val heads = (nodes.keySet -- children.values.flatten).toVector
-    heads.map(makeTree)
-  }
-
-  def fudgTree: FudgTree = fudgTrees match {
-    case Vector(t) => t
-    case trees => FudgTree(Node("<ROOT>", Vector(), FeFudgNodeType), trees)
+  lazy val fudgTree: FudgTree = {
+	  val children = edges.map { case Edge(p, c, l) => (p.name, c.name) }.groupByKey
+	  def makeTree(nodeName: String): FudgTree = FudgTree(nodes(nodeName), children.getOrElse(nodeName, Vector.empty).map(makeTree)) // .sortBy(_.tokens.map(_.index).min)
+	  val heads = (nodes.keySet -- children.values.flatten).toVector
+	  val trees = heads.map(makeTree)
+    FudgTree(Node("<ROOT>", Vector(), FeFudgNodeType), trees)
   }
 
   /**
@@ -41,7 +36,7 @@ case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vect
    * A "bracket" is a pair (start,end) such that `sentence.tokens.slice(start,end)`
    * is a bracketed unit.
    *
-   * A bracket is an Fudg Expression or Mulit-Word Expression node that covers
+   * A bracket is an Fudg Expression or Multi-Word Expression node that covers
    * a contiguous span of words.
    */
   lazy val brackets: Vector[(Int, Int)] = {
@@ -54,7 +49,7 @@ case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vect
       val bracket = indicesCovered.collect { case ic if indicesAreSpan(ic) => (ic.min, ic.max + 1) }
       t.children.flatMap(treeBrackets) ++ bracket
     }
-    fudgTrees.flatMap(treeBrackets)
+    treeBrackets(fudgTree)
   }
 
   private def indicesAreSpan(indicesCovered: Set[Int]) = {

@@ -2,6 +2,7 @@ package dhg.gfl
 
 import dhg.util.CollectionUtil._
 import dhg.util.FileUtil._
+import dhg.util.StringUtil._
 import dhg.util.Subprocess
 import dhg.util.viz.VizTree
 import scalaz._
@@ -18,14 +19,34 @@ import scala.annotation.tailrec
  */
 object Fudg {
 
-  def fromGfl(tokens: Vector[String], gfl: String): Option[Sentence] = {
+  /**
+   * Interpret the given GFL annotation for the given sentence as
+   * a FUDG expression.
+   *
+   * @param tokens  The sentence as a sequence of individual tokens
+   * @param gfl     The GFL annotation text block
+   * @return        A Validation object containing either the FUDG sentence
+   *                or the `GFLError` validation message returned from the
+   *                underlying CMU library.
+   */
+  def fromGfl(tokens: Vector[String], gfl: String): Validation[String, Sentence] = {
     fromGfl(tokens.mkString(" "), gfl)
   }
 
-  def fromGfl(sentence: String, gfl: String): Option[Sentence] = {
+  /**
+   * Interpret the given GFL annotation for the given sentence as
+   * a FUDG expression.
+   *
+   * @param tokens  The sentence as a string
+   * @param gfl     The GFL annotation text block
+   * @return        A Validation object containing either the FUDG sentence
+   *                or the `GFLError` validation message returned from the
+   *                underlying CMU library.
+   */
+  def fromGfl(sentence: String, gfl: String): Validation[String, Sentence] = {
     val input = f"${sentence.trim}\n${gfl.trim}"
-    val fudgJsonString = Subprocess.findBinary("python").args("parse_gfl.py").call(input)
-    for (fudgJson <- Parse.parseOption(fudgJsonString)) yield {
+    callBinary(input).map { fudgJsonString =>
+      val fudgJson = Parse.parseOption(fudgJsonString).get
       //println(fudgJson.spaces2)
 
       /*
@@ -34,6 +55,7 @@ object Fudg {
        *   "example~1" -> Token("example~1", 1))
        */
       val tokens: Map[String, Token] = fudgJson.field("tokens").get.array.get.map(_.string.get).zipWithIndex.map { case (token, i) => token -> Token(token, i) }.toMap
+      assert(tokens.size == sentence.trim.splitWhitespace.size, f"tokens.size=${tokens.size} != sentence.size=${sentence.trim.splitWhitespace.size}")
 
       /*
        * Map(
@@ -44,6 +66,12 @@ object Fudg {
         val n2wJson = fudgJson.field("n2w").get
         n2wJson.objectFields.get.mapTo { nodeName => n2wJson.field(nodeName).get.array.get.map(tok => tokens(tok.string.get)).toVector.sortBy(_.index) }.toMap
       }
+
+      /*
+       * Tokens that are not included in any node
+       */
+      val coveredTokens = n2w.values.flatten.toSet
+      val uncoveredTokenNodes = tokens.collect { case (name, tok) if !coveredTokens(tok) => name -> Node(name, Vector(tok), WordFudgNodeType) }
 
       /*
        * Map(
@@ -61,13 +89,22 @@ object Fudg {
           case FeRe(_) => FeFudgNodeType
         }
         Node(nodeName, n2w.getOrElse(nodeName, Vector.empty), typ)
-      }.toMap
+      }.toMap ++ uncoveredTokenNodes
 
       val edges: Vector[Edge] = fudgJson.field("node_edges").get.array.get.map(_.array.get).map {
         case List(parent, child, label) => Edge(nodes(parent.string.get), nodes(child.string.get), label.string.filter(_ != "null"))
       }.toVector
 
       Sentence(tokens.values.toVector.sortBy(_.index), nodes, edges)
+    }
+  }
+
+  private[this] def callBinary(input: String): Validation[String, String] = {
+    val (exitcode, fudgJsonString, error) = Subprocess.findBinary("python").args("parse_gfl.py").callAllReturns(input)
+    exitcode match {
+      case 0 => fudgJsonString.success[String]
+      case 100 => error.trim.failure[String]
+      case _ => sys.error(s"ERROR CALLING: python parse_gfl.py\nReturncode: $exitcode\n$error")
     }
   }
 
@@ -95,50 +132,85 @@ object Fudg {
 
           //_ = println(f"$language -> $groupNumber -> $sentenceNumber -> $annotation")
 
-          sentence <- fromGfl(tokens, annotation)
+          sentence <- fromGfl(tokens, annotation).toOption
         } yield sentence).toVector
     }).toMap
   }
 
   /**
-   * Check whether this set of edges is valid
+   * Check whether this set of edges is semantically valid.
    *
    * <code>
-   *   def graph_semantics_check(parse):
-   *   """Do checks on the final parse graph -- these are linguistic-level checks,
-   *   not graph definition checks."""
-   *   # Check tree constraint
-   *   for n in parse.nodes:
-   *     outbounds = [(h,c,l) for h,c,l in parse.node_edges if c==n and l is None]
-   *     if len(outbounds) > 1:
-   *       raise InvalidGraph("Violates tree constraint: node {} has {} outbound edges: {}".format(
-   *         repr(n), len(outbounds), repr(outbounds)))
+   *     gfl_syntax/gflparser/gfl_parser.py, line 349
+   *
+   *     def graph_semantics_check(parse):
+   *         """Do checks on the final parse graph -- these are linguistic-level checks,
+   *         not graph definition checks.
+   *
+   *         This doesn't attempt to do fancy reasoning about FEs.
+   *         E.g., a < (b* c d) precludes a < c, but this conflict will not be caught here.
+   *         """
+   *         # Check tree constraint over each fragment
+   *         roots = set()
+   *         rootFor = {}
+   *
+   *         for n in parse.nodes:
+   *             outbounds = [(h,c,l) for h,c,l in parse.node_edges if c==n and l not in {'Anaph','fe*','fe'}]
+   *             if len(outbounds) > 1:
+   *                 raise GFLError("Violates tree constraint: node {} has {} outbound edges: {}".format(
+   *                                                             repr(n), len(outbounds), repr(outbounds)))
+   *             elif len(outbounds)==0:
+   *                 roots.add(n)
+   *             elif n=='**':
+   *                 raise GFLError("Special root symbol ** cannot be a dependent")
+   *             else:
+   *                 h, c, _ = outbounds[0]
+   *                 r = rootFor.setdefault(h,h)
+   *                 rootFor[c] = r
+   *                 for k,v in rootFor.items():
+   *                     if v==c:
+   *                         rootFor[k] = r
+   *         if not roots:
+   *             raise GFLError("Violates tree constraint: no root")
+   *         else:
+   *             for k,v in rootFor.items():
+   *                 if v not in roots:
+   *                     raise GFLError("Violates tree constraint: no root for node {}".format(repr(k)))
    * <code>
    */
   def isSemanticallyValid(edges: Vector[Edge], throwOnFalse: Boolean = false): Boolean = {
-    val parents = edges.collect { case Edge(parent, child, None) => child -> parent }.groupByKey
-    for ((child, parents) <- parents) { println(f"${child.name} -> {${parents.map(_.name)}}") }; println
+    val errors = semanticTreeErrors(edges)
+    if (errors.nonEmpty && throwOnFalse)
+      throw new RuntimeException(f"Tree constraint violations found:\n" + errors.map("    " + _).mkString("\n"))
+    errors.isEmpty
+  }
 
-    val sb = new StringBuilder
+  /**
+   * Return a list of semantic tree errors.
+   */
+  def semanticTreeErrors(edges: Vector[Edge]): Vector[String] = {
+    val b = collection.mutable.Buffer[String]()
 
+    val parents = edges.collect { case Edge(parent, child, label) if !label.exists(Set("Anaph", "fe*", "fe")) => child -> parent }.groupByKey
     val multipleParents = parents.filter(_._2.size > 1)
     multipleParents.foreach {
       case (child, parents) =>
-        sb.append(f"        node $child has multiple parents: $parents\n")
+        b.append(f"node ${child.name} has multiple parents: ${parents.map(_.name)}\n")
     }
 
     val cycles = findCycle(edges.collect { case Edge(parent, child, _) => (parent, child) })
     cycles.foreach { cycle =>
-      sb.append(f"        cycle found involving nodes: ${cycles.mkString(", ")}\n")
+      b.append(f"cycle found involving nodes: ${cycles.map(_.map(_.name)).mkString(", ")}\n")
+    }
+    
+    if(parents.exists(_._1.name == "**")){
+      b.append(f"Special root symbol ** cannot be a dependent")
     }
 
-    if (throwOnFalse)
-      throw new RuntimeException(f"Tree constraint violations found:\n" + sb)
-    sb.isEmpty
+    b.toVector
   }
 
-  @tailrec final def findCycle(allLinks: Vector[(Node, Node)]): Vector[Set[Node]] = {
-    println(allLinks.map{case (Node(n1,_,_), Node(n2,_,_)) => f"$n1 -> $n2"}.mkString(", "))
+  @tailrec private def findCycle(allLinks: Vector[(Node, Node)]): Vector[Set[Node]] = {
     allLinks match {
       case (a, b) +: otherLinks =>
         if (allLinks.contains(b -> a)) {

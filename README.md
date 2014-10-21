@@ -38,6 +38,7 @@ API: http://www.cs.utexas.edu/~dhg/maven-repository/snapshots/dhg/gfl-scala_2.11
 Load a single sentence:
 
     import dhg.gfl.Fudg._
+    import dhg.util._
 
     val text = "The man walks a big dog ."
     val annotation = """
@@ -45,8 +46,7 @@ Load a single sentence:
         big > dog
         (The man)
         """
-    val sentenceOption: Option[Sentence] = fromGfl(text, annotation)
-    val sentence = sentenceOption.get
+    val sentence = fromGfl(text, annotation).getOrElseThrow()
 
 Read annotation from files:
 

@@ -26,10 +26,10 @@ lines = [line.strip() for line in sys.stdin]
 tokens = lines[0].split()
 code = '\n'.join(lines[1:])
 try:
-    parse = gfl_parser.parse(tokens, code, check_semantics=True)
+    parse = gfl_parser.parse(tokens, code, check_semantics=False)
     #view.desktop_open(view.draw(parse, 'x'))
     parseJ = parse.to_json()
     print(json.dumps(parseJ), sep='\t')
-except gfl_parser.GFLError:
-    print(code, file=sys.stderr)
-    raise
+except gfl_parser.GFLError as e:
+    print(str(e), file=sys.stderr)
+    sys.exit(100)
