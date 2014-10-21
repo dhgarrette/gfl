@@ -103,12 +103,50 @@ object Fudg {
     }
   }
 
+  /**
+   * Convert from annotations format to FUDG JSON, as specified in FUDG_JSON.md.
+   *
+   * Copied from gfl_syntax/scripts/make_json.py, but modified to read from
+   * stdin instead of file.
+   *
+   * Input: First line is the input sentence (whitespace separated tokens).
+   * Subsequent lines are the GFL annotations.
+   * Output: FUDG JSON string
+   *
+   */
   private[this] def callBinary(input: String): Validation[String, String] = {
-    val (exitcode, fudgJsonString, error) = Subprocess.findBinary("python").args("parse_gfl.py").callAllReturns(input)
+    val cmd = """
+from __future__ import print_function
+
+import sys,re,os
+try:
+    import ujson as json
+except ImportError:
+    import json
+
+import view
+#sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'gflparser'))
+import gfl_parser
+import string
+
+lines = [line.strip() for line in sys.stdin]
+tokens = lines[0].split()
+code = '\n'.join(lines[1:])
+try:
+    parse = gfl_parser.parse(tokens, code, check_semantics=False)
+    #view.desktop_open(view.draw(parse, 'x'))
+    parseJ = parse.to_json()
+    print(json.dumps(parseJ), sep='\t')
+except gfl_parser.GFLError as e:
+    print(str(e), file=sys.stderr)
+    sys.exit(100)
+		  """
+
+    val (exitcode, fudgJsonString, error) = Subprocess.findBinary("python").args("-c", cmd).callAllReturns(input)
     exitcode match {
       case 0 => fudgJsonString.success[String]
       case 100 => error.trim.failure[String]
-      case _ => sys.error(s"ERROR CALLING: python parse_gfl.py\nReturncode: $exitcode\n$error")
+      case _ => sys.error(s"ERROR CALLING: python binary\nReturncode: $exitcode\n$error")
     }
   }
 

@@ -26,8 +26,8 @@ In `build.sbt`:
     git clone git@github.com:brendano/gfl_syntax.git
     git clone git@github.com:erikrose/parsimonious.git
 
-    export PYTHONPATH=$PYTHONPATH:$(pwd)/gfl_syntax/scripts
-    export PYTHONPATH=$PYTHONPATH:$(pwd)/gfl_syntax/parser
+    export PYTHONPATH=$PYTHONPATH:$(pwd)/gfl_syntax/scripts/
+    export PYTHONPATH=$PYTHONPATH:$(pwd)/gfl_syntax/parser/
     export PYTHONPATH=$PYTHONPATH:$(pwd)/parsimonious/
 
 
