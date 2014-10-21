@@ -71,7 +71,7 @@ object Fudg {
        * Tokens that are not included in any node
        */
       val coveredTokens = n2w.values.flatten.toSet
-      val uncoveredTokenNodes = tokens.collect { case (name, tok) if !coveredTokens(tok) => name -> Node(name, Vector(tok), WordFudgNodeType) }
+      val uncoveredTokenNodes = tokens.collect { case (name, tok) if !coveredTokens(tok) => name -> WordNode(name, tok) }
 
       /*
        * Map(
@@ -83,12 +83,16 @@ object Fudg {
       val MweRe = """MW\((.+)\)""".r
       val FeRe = """FE(\d+)""".r
       val nodes: Map[String, Node] = fudgJson.field("nodes").get.array.get.map(_.string.get).mapTo { nodeName =>
-        val typ = nodeName match {
-          case WordRe(_) => WordFudgNodeType
-          case MweRe(_) => MweFudgNodeType
-          case FeRe(_) => FeFudgNodeType
+        nodeName match {
+          case WordRe(_) =>
+            WordNode(nodeName, n2w(nodeName).only)
+          case MweRe(_) =>
+            assert(n2w(nodeName).nonEmpty)
+            MweNode(nodeName, n2w(nodeName))
+          case FeRe(_) =>
+            assert(!n2w.contains(nodeName))
+            FeNode(nodeName)
         }
-        Node(nodeName, n2w.getOrElse(nodeName, Vector.empty), typ)
       }.toMap ++ uncoveredTokenNodes
 
       val edges: Vector[Edge] = fudgJson.field("node_edges").get.array.get.map(_.array.get).map {
@@ -202,8 +206,8 @@ object Fudg {
     cycles.foreach { cycle =>
       b.append(f"cycle found involving nodes: ${cycles.map(_.map(_.name)).mkString(", ")}\n")
     }
-    
-    if(parents.exists(_._1.name == "**")){
+
+    if (parents.exists(_._1.name == "**")) {
       b.append(f"Special root symbol ** cannot be a dependent")
     }
 

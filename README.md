@@ -76,7 +76,7 @@ Getting sentence information:
      * A "bracket" is a pair (start,end) such that `sentence.tokens.slice(start,end)` 
      * is a bracketed unit.
      */
-    val allBrackets: Vector[(Int, Int)] = sentence.brackets
+    val allBrackets: Set[(Int, Int)] = sentence.brackets
 
     /* 
      * Get (and draw) the tree of `deps`.

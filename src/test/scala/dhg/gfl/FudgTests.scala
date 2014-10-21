@@ -21,7 +21,7 @@ class FudgTests {
       (The man)
       """).getOrElseThrow()
     //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
-    assertEquals(Vector((0, 2), (0, 6), (3, 6)), sentence.brackets.sorted)
+    assertEquals(Vector((0, 2), (0, 6), (3, 6)), sentence.brackets.toVector.sorted)
   }
 
   @Test
@@ -33,7 +33,7 @@ class FudgTests {
       (The man)
       """).getOrElseThrow()
     //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
-    assertEquals(Vector((0, 2), (0, 6), (4, 6)), sentence.brackets.sorted)
+    assertEquals(Vector((0, 2), (0, 6), (4, 6)), sentence.brackets.toVector.sorted)
   }
 
   @Test
@@ -45,7 +45,7 @@ class FudgTests {
       (The man)
       """).getOrElseThrow()
     //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
-    assertEquals(Vector((0, 2)), sentence.brackets.sorted)
+    assertEquals(Vector((0, 2)), sentence.brackets.toVector.sorted)
   }
 
   @Test
@@ -57,7 +57,7 @@ class FudgTests {
       big > dog
       """).getOrElseThrow()
     //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
-    assertEquals(Vector((0, 6), (3, 6)), sentence.brackets.sorted)
+    assertEquals(Vector((0, 6), (3, 6)), sentence.brackets.toVector.sorted)
   }
 
   @Test
@@ -68,7 +68,7 @@ class FudgTests {
       b > [c d]
       """).getOrElseThrow()
     //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
-    assertEquals(Vector((2, 4)), sentence.brackets.sorted)
+    assertEquals(Vector((2, 4)), sentence.brackets.toVector.sorted)
   }
 
   @Test
@@ -80,7 +80,7 @@ class FudgTests {
       b > c
       """).getOrElseThrow()
     //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
-    assertEquals(Vector(), sentence.brackets.sorted)
+    assertEquals(Vector(), sentence.brackets.toVector.sorted)
   }
 
   @Test
@@ -92,7 +92,7 @@ class FudgTests {
       b > c
       """).getOrElseThrow()
     //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
-    assertEquals(Vector(), sentence.brackets.sorted)
+    assertEquals(Vector((0, 2)), sentence.brackets.toVector.sorted)
   }
 
   @Test
@@ -144,6 +144,152 @@ class FudgTests {
     val errors = Fudg.semanticTreeErrors(sentence.edges)
     assertTrue(errors.nonEmpty)
     assertTrue(errors.exists(_.startsWith("node W(c) has multiple parents")))
+  }
+
+  @Test
+  def test_fromGfl_11 {
+    val sentence = Fudg.fromGfl(
+      "a b c",
+      """
+      a > b
+      c > b
+      """).getOrElseThrow()
+    //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
+    assertEquals(Vector(), sentence.brackets.toVector.sorted)
+  }
+
+  @Test
+  def test_fromGfl_12 {
+    val sentence = Fudg.fromGfl(
+      "a b c d",
+      """
+      a > b
+      c > b
+      b > d
+      """).getOrElseThrow()
+    //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
+    assertEquals(Vector((0, 3)), sentence.brackets.toVector.sorted)
+  }
+
+  @Test
+  def test_fromGfl_13 {
+    val sentence = Fudg.fromGfl(
+      "a b c d e f",
+      """
+          b       <      e
+      a > b < c      d > e < f
+      """).getOrElseThrow()
+    //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
+    assertEquals(Vector((3, 6)), sentence.brackets.toVector.sorted)
+  }
+
+  @Test
+  def test_fromGfl_14 {
+    val sentence = Fudg.fromGfl(
+      "a b c d e f g",
+      """
+          b   >   d   <   f
+      a > b < c       e > f < g
+      """).getOrElseThrow()
+    //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
+    assertEquals(Vector((0, 3), (4, 7)), sentence.brackets.toVector.sorted)
+  }
+
+  @Test
+  def test_fromGfl_15 {
+    val sentence = Fudg.fromGfl(
+      // (a b c) d ((e f g) h i)
+      "a b c d e f g h i",
+      """
+          b   >   d   <   i
+      a > b < c           i   <    g           i < h
+                               e > g < f
+      """).getOrElseThrow()
+    //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
+    assertEquals(Vector((0, 3), (4, 7), (4, 9)), sentence.brackets.toVector.sorted)
+  }
+
+  @Test
+  def test_fromGfl_16 {
+    val sentence = Fudg.fromGfl(
+      "a b c d e f g h i",
+      """
+          b   >   d   <   i
+      a > b < c           i   <   (g h)
+                               e > g < f
+      """).getOrElseThrow()
+    //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
+    assertEquals(Vector((0, 3), (4, 8), (4, 9)), sentence.brackets.toVector.sorted)
+  }
+
+  @Test
+  def test_fromGfl_17 {
+    val sentence = Fudg.fromGfl(
+      // (a b c) d ((e f g) h i)
+      "a b c d e f g h i j",
+      """
+          b   >   d   <   j
+      a > b < c           j   <   (g        h       i)
+                               e > g < f
+      """).getOrElseThrow()
+    //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
+    assertEquals(Vector((0, 3), (4, 9), (4, 10)), sentence.brackets.toVector.sorted)
+  }
+
+  @Test
+  def test_fromGfl_18 {
+    val sentence = Fudg.fromGfl(
+      // (a b c) d ((e f g) h i)
+      "a b c d e f g h i j",
+      """
+          b   >   d   <   j
+      a > b < c           j   <   (g   >    h   <   i)
+                               e > g < f
+      """).getOrElseThrow()
+    //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
+    assertEquals(Vector((0, 3), (4, 7), (4, 9), (4, 10)), sentence.brackets.toVector.sorted)
+  }
+
+  @Test
+  def test_fromGfl_19 {
+    val sentence = Fudg.fromGfl(
+      // (a b c) d ((e f g) h i)
+      "a b c d e f g h i j",
+      """
+          b   >   d   <   j
+      a > b < c           j   <   (g   >    h       i)
+                               e > g < f
+      """).getOrElseThrow()
+    //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
+    assertEquals(Vector((0, 3), (4, 9), (4, 10)), sentence.brackets.toVector.sorted)
+  }
+
+  @Test
+  def test_fromGfl_20 {
+    val sentence = Fudg.fromGfl(
+      // (a b c) d ((e f g) h i)
+      "a b c d e f g h i j",
+      """
+          b   >   d   <   j
+      a > b < c           j   <   (g        h   <   i)
+                               e > g < f
+      """).getOrElseThrow()
+    //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
+    assertEquals(Vector((0, 3), (4, 9), (4, 10)), sentence.brackets.toVector.sorted)
+  }
+
+  @Test
+  def test_fromGfl_21 {
+    val sentence = Fudg.fromGfl(
+      // (a b c) d ((e f g) h i)
+      "a b c d e f g h i j",
+      """
+          b   >   d   <   j
+      a > b < c           j   <   (g       (h       i))
+                               e > g < f
+      """).getOrElseThrow()
+    //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
+    assertEquals(Vector((0, 3), (4, 9), (4, 10), (7, 9)), sentence.brackets.toVector.sorted)
   }
 
   @Test

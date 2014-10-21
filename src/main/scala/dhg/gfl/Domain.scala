@@ -2,6 +2,7 @@ package dhg.gfl
 
 import dhg.util.CollectionUtil._
 import dhg.util.FileUtil._
+import dhg.util.Pattern._
 import dhg.util.Subprocess
 import dhg.util.viz.VizTree
 import scalaz._
@@ -17,17 +18,19 @@ import dhg.util.viz.TreeViz
  */
 case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vector[Edge]) {
 
-  private val tokenNodes: Map[Token, Node] = nodes.values.collect { case node @ Node(name, Vector(token @ Token(word, index)), WordFudgNodeType) => (token, node) }.toMap
+  private val tokenNodes: Map[Token, Node] = nodes.values.collect { case node @ WordNode(name, token) => (token, node) }.toMap
 
   /**
    * The underspecified dependency trees representing this sentence.
    */
   lazy val fudgTree: FudgTree = {
-	  val children = edges.map { case Edge(p, c, l) => (p.name, c.name) }.groupByKey
-	  def makeTree(nodeName: String): FudgTree = FudgTree(nodes(nodeName), children.getOrElse(nodeName, Vector.empty).map(makeTree)) // .sortBy(_.tokens.map(_.index).min)
-	  val heads = (nodes.keySet -- children.values.flatten).toVector
-	  val trees = heads.map(makeTree)
-    FudgTree(Node("<ROOT>", Vector(), FeFudgNodeType), trees)
+    val children = edges.map { case Edge(p, c, l) => (p.name, c.name) }.groupByKey
+    def makeTree(nodeName: String): FudgTree = FudgTree(nodes(nodeName), children.getOrElse(nodeName, Vector.empty).map(makeTree)) // .sortBy(_.tokens.map(_.index).min)
+    val heads = (nodes.keySet -- children.values.flatten).toVector
+    heads.map(makeTree) match {
+      case Coll(tree) => tree
+      case trees => FudgTree(FeNode("<ROOT>"), trees)
+    }
   }
 
   /**
@@ -39,17 +42,26 @@ case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vect
    * A bracket is an Fudg Expression or Multi-Word Expression node that covers
    * a contiguous span of words.
    */
-  lazy val brackets: Vector[(Int, Int)] = {
-    def treeBrackets(t: FudgTree): Vector[(Int, Int)] = {
-      val indicesCovered = t.node.typ match {
-        case FeFudgNodeType => Some(t.indicesCoveredRecursively)
-        case MweFudgNodeType => Some(t.node.tokens.map(_.index).toSet)
+  lazy val brackets: Set[(Int, Int)] = {
+    def literalBrackets(t: FudgTree): Set[(Int, Int)] = {
+      val indicesCovered = t.node match {
+        case FeNode(_) => Some(t.indicesCoveredRecursively)
+        case MweNode(_, tokens) => Some(tokens.map(_.index).toSet)
         case _ => None
       }
       val bracket = indicesCovered.collect { case ic if indicesAreSpan(ic) => (ic.min, ic.max + 1) }
-      t.children.flatMap(treeBrackets) ++ bracket
+      t.children.flatMap(literalBrackets).toSet ++ bracket
     }
-    treeBrackets(fudgTree)
+
+    def unambiguousDepTreeBrackets(t: FudgTree): Set[(Int, Int)] = t.node match {
+      case _: FeNode => Set.empty
+      case _ =>
+        val ic = t.indicesCoveredRecursively
+        val bracket = indicesAreSpan(ic).option((ic.min, ic.max + 1))
+        t.children.flatMap(unambiguousDepTreeBrackets).toSet ++ bracket
+    }
+
+    literalBrackets(fudgTree) | unambiguousDepTreeBrackets(fudgTree)
   }
 
   private def indicesAreSpan(indicesCovered: Set[Int]) = {
@@ -100,13 +112,8 @@ case class FudgTree(node: Node, children: Vector[FudgTree]) extends VizTree {
 }
 
 case class Token(token: String, index: Int)
-case class Node(name: String, tokens: Vector[Token], typ: FudgNodeType)
+trait Node { def name: String; def tokens: Vector[Token] }
+case class WordNode(name: String, token: Token) extends Node { def tokens = Vector(token) }
+case class MweNode(name: String, tokens: Vector[Token]) extends Node
+case class FeNode(name: String) extends Node { def tokens = Vector.empty }
 case class Edge(parent: Node, child: Node, label: Option[String])
-
-sealed trait FudgNodeType
-/** A word node: W(word) */
-case object WordFudgNodeType extends FudgNodeType
-/** A multi-word expression node: MW(word1_word2_word3) */
-case object MweFudgNodeType extends FudgNodeType
-/** A Fudg Expression node: FE1 */
-case object FeFudgNodeType extends FudgNodeType
