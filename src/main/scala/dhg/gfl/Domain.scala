@@ -1,22 +1,30 @@
 package dhg.gfl
 
+import scala.Vector
+
 import dhg.util.CollectionUtil._
-import dhg.util.FileUtil._
 import dhg.util.Pattern._
-import dhg.util.Subprocess
 import dhg.util.viz.VizTree
-import scalaz._
-import Scalaz._
-import argonaut._
-import Argonaut._
-import dhg.util.viz.TreeViz
+import scalaz.Scalaz._
+
+trait FudgSentence {
+  def tokens: Vector[Token]
+  def nodes: Map[String, Node]
+  def edges: Vector[Edge]
+  def fudgTree: FudgTree
+  def brackets: Set[(Int, Int)]
+  def token(i: Int): Token
+  def node(i: Int): Node
+  def addEdge(e: Edge): FudgSentence
+  def addEdge(parentIndex: Int, childIndex: Int): FudgSentence
+}
 
 /**
  * A `Sentence` is the primary way of using Fudg information.
  *
  * @author Dan Garrette (dhg@cs.utexas.edu)
  */
-case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vector[Edge]) {
+case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vector[Edge]) extends FudgSentence {
 
   private val tokenNodes: Map[Token, Node] = nodes.values.collect { case node @ WordNode(name, token) => (token, node) }.toMap
 
@@ -64,6 +72,18 @@ case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vect
     literalBrackets(fudgTree) | unambiguousDepTreeBrackets(fudgTree)
   }
 
+  /**
+   * Invalid spans.
+   * 
+   * 
+   */
+  lazy val invalidSpans: Set[(Int, Int)] = {
+    
+
+    
+    ???
+  }
+
   private def indicesAreSpan(indicesCovered: Set[Int]) = {
     indicesCovered.size > 1 && indicesCovered.size < tokens.size && indicesCovered.max - indicesCovered.min == indicesCovered.size - 1
   }
@@ -86,7 +106,17 @@ case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vect
    * Add an edge to the Fudg representation of this sentence and return a new
    * `Sentence` with the expanded edge set.
    */
-  def addEdge(e: Edge): Sentence = this.copy(edges = edges :+ e)
+  def addEdge(e: Edge): Sentence = {
+    this.copy(edges = edges :+ e)
+  }
+
+  /**
+   * Add an edge to the Fudg representation of this sentence and return a new
+   * `Sentence` with the expanded edge set.
+   */
+  def addEdge(parentNode: Node, childNode: Node): Sentence = {
+    addEdge(Edge(parentNode, childNode, None))
+  }
 
   /**
    * Add an edge to the Fudg representation of this sentence and return a new
@@ -94,26 +124,24 @@ case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vect
    * between the tokens at the two specified indices.
    */
   def addEdge(parentIndex: Int, childIndex: Int): Sentence = {
-    addEdge(Edge(node(parentIndex), node(childIndex), None))
+    addEdge(node(parentIndex), node(childIndex))
   }
 
 }
 
-case class FudgTree(node: Node, children: Vector[FudgTree]) extends VizTree {
-  /**
-   * The name of the node at the root of this (sub)tree.
-   */
+case class FudgTree(node: Node, subtrees: Vector[FudgTree]) extends VizTree {
   def label = node.name
+  def children = subtrees.sortBy(_.indicesCoveredRecursively.min)
 
   /**
    * The set of indices of all tokens below this node.
    */
-  lazy val indicesCoveredRecursively: Set[Int] = node.tokens.map(_.index).toSet ++ children.flatMap(_.indicesCoveredRecursively)
+  lazy val indicesCoveredRecursively: Set[Int] = node.tokens.map(_.index).toSet ++ subtrees.flatMap(_.indicesCoveredRecursively)
 }
 
-case class Token(token: String, index: Int)
+case class Token(token: String, index: Int) { override def toString = f"""Token("$token",$index)""" }
 trait Node { def name: String; def tokens: Vector[Token] }
-case class WordNode(name: String, token: Token) extends Node { def tokens = Vector(token) }
-case class MweNode(name: String, tokens: Vector[Token]) extends Node
-case class FeNode(name: String) extends Node { def tokens = Vector.empty }
+case class WordNode(name: String, token: Token) extends Node { def tokens = Vector(token); override def toString = f"""WordNode("$name", $token)""" }
+case class MweNode(name: String, tokens: Vector[Token]) extends Node { override def toString = f"""MweNode("$name", [${tokens.mkString { ", " }}])""" }
+case class FeNode(name: String) extends Node { def tokens = Vector.empty; override def toString = f"""FeNode("$name")""" }
 case class Edge(parent: Node, child: Node, label: Option[String])

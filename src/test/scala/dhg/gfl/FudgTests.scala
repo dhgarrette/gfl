@@ -17,8 +17,8 @@ class FudgTests {
       "The man walks a big dog .",
       """
       (The man walks < (a dog*))  .
-      big > dog
       (The man)
+      big > dog
       """).getOrElseThrow()
     //dhg.util.viz.TreeViz.drawTree(sentence.fudgTree)
     assertEquals(Vector((0, 2), (0, 6), (3, 6)), sentence.brackets.toVector.sorted)
@@ -309,6 +309,20 @@ class FudgTests {
     //    val s2 = s1.addEdge(Edge(s1.node(1), s1.node(0), None))
     //    dhg.util.viz.TreeViz.drawTree(s2.fudgTree)
     //    assertEquals(Vector((0, 6), (3,6)), s2.brackets.sorted)
+  }
+
+  @Test
+  def test_isSemanticallyValid_2 {
+	  //dhg.util.viz.TreeViz.drawTree(Fudg.fromGfl("a b c d", """ (a < b) (c > d) (b c) """, checkSemantics=true).getOrElseThrow().fudgTree)
+    
+    assertTrue(Fudg.isSemanticallyValid(Fudg.fromGfl(" a b c d", """ (a < b) (c > d) """).getOrElseThrow().edges))
+    assertTrue(Fudg.isSemanticallyValid(Fudg.fromGfl(" a b c d", """ (a < b) (c > d) (a b) """).getOrElseThrow().edges))
+    assertFalse(Fudg.isSemanticallyValid(Fudg.fromGfl("a b c d", """ (a < b) (c > d) (b > c) """).getOrElseThrow().edges))
+    assertFalse(Fudg.isSemanticallyValid(Fudg.fromGfl("a b c d", """ (a < b) (c > d) (b < c) """).getOrElseThrow().edges))
+    assertTrue(Fudg.isSemanticallyValid(Fudg.fromGfl(" a b c d", """ (a < b) (c > d) (c d) """).getOrElseThrow().edges))
+    assertTrue(Fudg.isSemanticallyValid(Fudg.fromGfl(" a b c d", """ (a < b) (c > d) (a b c) """).getOrElseThrow().edges))
+    assertTrue(Fudg.isSemanticallyValid(Fudg.fromGfl(" a b c d", """ (a < b) (c > d) (b c d) """).getOrElseThrow().edges))
+    assertFalse(Fudg.isSemanticallyValid(Fudg.fromGfl("a b c d", """ (a < b) (c > d) (b c) """).getOrElseThrow().edges))
   }
 
 }

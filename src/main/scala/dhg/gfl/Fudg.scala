@@ -43,9 +43,9 @@ object Fudg {
    *                or the `GFLError` validation message returned from the
    *                underlying CMU library.
    */
-  def fromGfl(sentence: String, gfl: String): Validation[String, Sentence] = {
+  def fromGfl(sentence: String, gfl: String, checkSemantics: Boolean = false): Validation[String, Sentence] = {
     val input = f"${sentence.trim}\n${gfl.trim}"
-    callBinary(input).map { fudgJsonString =>
+    callBinary(input, checkSemantics).map { fudgJsonString =>
       val fudgJson = Parse.parseOption(fudgJsonString).get
       //println(fudgJson.spaces2)
 
@@ -75,9 +75,9 @@ object Fudg {
 
       /*
        * Map(
-       *   "W(example~1)"    -> Node("W(example~1)", Vector(Token("example~1", 1))),
-       *   "MW(still_at_it)" -> Node("MW(still_at_it)", Vector(Token("still", 2), Token("at", 3), Token("it", 4))),
-       *   "FE3"             -> Node("FE3))
+       *   "W(example~1)"    -> WordNode("W(example~1)", Token("example~1", 1)),
+       *   "MW(still_at_it)" -> MweNode("MW(still_at_it)", Vector(Token("still", 2), Token("at", 3), Token("it", 4))),
+       *   "FE3"             -> FeNode("FE3))
        */
       val WordRe = """W\((.+)\)""".r
       val MweRe = """MW\((.+)\)""".r
@@ -114,7 +114,7 @@ object Fudg {
    * Output: FUDG JSON string
    *
    */
-  private[this] def callBinary(input: String): Validation[String, String] = {
+  private[this] def callBinary(input: String, checkSemantics: Boolean = false): Validation[String, String] = {
     val cmd = """
 from __future__ import print_function
 
@@ -133,7 +133,7 @@ lines = [line.strip() for line in sys.stdin]
 tokens = lines[0].split()
 code = '\n'.join(lines[1:])
 try:
-    parse = gfl_parser.parse(tokens, code, check_semantics=False)
+    parse = gfl_parser.parse(tokens, code, check_semantics="""+{if (checkSemantics) "True" else "False"}+""")
     #view.desktop_open(view.draw(parse, 'x'))
     parseJ = parse.to_json()
     print(json.dumps(parseJ), sep='\t')
@@ -233,14 +233,14 @@ except gfl_parser.GFLError as e:
   def semanticTreeErrors(edges: Vector[Edge]): Vector[String] = {
     val b = collection.mutable.Buffer[String]()
 
-    val parents = edges.collect { case Edge(parent, child, label) if !label.exists(Set("Anaph", "fe*", "fe")) => child -> parent }.groupByKey
+    val parents = edges.collect { case Edge(parent, child, label) if !label.exists(Set("Anaph", "fe*", "fe")) => child -> parent }.distinct.groupByKey
     val multipleParents = parents.filter(_._2.size > 1)
     multipleParents.foreach {
       case (child, parents) =>
         b.append(f"node ${child.name} has multiple parents: ${parents.map(_.name)}\n")
     }
 
-    val cycles = findCycle(edges.collect { case Edge(parent, child, _) => (parent, child) })
+    val cycles = findCycle(edges.collect { case Edge(parent, child, _) => (parent, child) }.distinct)
     cycles.foreach { cycle =>
       b.append(f"cycle found involving nodes: ${cycles.map(_.map(_.name)).mkString(", ")}\n")
     }
