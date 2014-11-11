@@ -178,6 +178,12 @@ except gfl_parser.GFLError as e:
         } yield sentence).toVector
     }).toMap
   }
+  
+  def emptyFromTokens(words: Vector[String]) {
+    val tokens = words.zipWithIndex.mapt ( (w,i) => Token(w,i) )
+    val nodes = tokens.map { tok => val name = f"${tok.token}_${tok.index}"; name -> WordNode(name, tok) }.toMap
+    Sentence(tokens, nodes, edges = Vector.empty[Edge])
+  }
 
   /**
    * Check whether this set of edges is semantically valid.

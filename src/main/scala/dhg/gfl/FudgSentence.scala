@@ -25,6 +25,7 @@ trait FudgSentence {
  * @author Dan Garrette (dhg@cs.utexas.edu)
  */
 case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vector[Edge]) extends FudgSentence {
+  require(tokens.zipWithIndex.forall { case (tok, i) => tok.index == i }, f"${tokens}")
 
   private val tokenNodes: Map[Token, Node] = nodes.values.collect { case node @ WordNode(name, token) => (token, node) }.toMap
 
@@ -74,13 +75,11 @@ case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vect
 
   /**
    * Invalid spans.
-   * 
-   * 
+   *
+   *
    */
   lazy val invalidSpans: Set[(Int, Int)] = {
-    
 
-    
     ???
   }
 
