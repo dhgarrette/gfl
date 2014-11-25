@@ -17,6 +17,7 @@ trait FudgSentence {
   def node(i: Int): Node
   def addEdge(e: Edge): FudgSentence
   def addEdge(parentIndex: Int, childIndex: Int): FudgSentence
+  def bracketsOnly(): FudgSentence
 }
 
 /**
@@ -126,6 +127,13 @@ case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vect
     addEdge(node(parentIndex), node(childIndex))
   }
 
+  /**
+   * Remove all dependency edges, leaving only brackets
+   */
+  def bracketsOnly() = {
+    val bracketEdges = edges.filter { case Edge(parent @ FeNode(_), child, label) => true; case _ => false }
+    this.copy(edges = bracketEdges)
+  }
 }
 
 case class FudgTree(node: Node, subtrees: Vector[FudgTree]) extends VizTree {
@@ -135,7 +143,11 @@ case class FudgTree(node: Node, subtrees: Vector[FudgTree]) extends VizTree {
   /**
    * The set of indices of all tokens below this node.
    */
-  lazy val indicesCoveredRecursively: Set[Int] = node.tokens.map(_.index).toSet ++ subtrees.flatMap(_.indicesCoveredRecursively)
+  lazy val indicesCoveredRecursively: Set[Int] = {
+    val is = node.tokens.map(_.index).toSet ++ subtrees.flatMap(_.indicesCoveredRecursively)
+    assert(is.nonEmpty, f"$node  covers no indicies!")
+    is
+  }
 }
 
 case class Token(token: String, index: Int) { override def toString = f"""Token("$token",$index)""" }
