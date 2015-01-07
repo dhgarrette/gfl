@@ -145,9 +145,11 @@ case class FudgTree(node: Node, subtrees: Vector[FudgTree]) extends VizTree {
    */
   lazy val indicesCoveredRecursively: Set[Int] = {
     val is = node.tokens.map(_.index).toSet ++ subtrees.flatMap(_.indicesCoveredRecursively)
-    assert(is.nonEmpty, f"$node  covers no indicies!")
+    assert(is.nonEmpty, f"$node  covers no indices!")
     is
   }
+  
+  override def toString = if(subtrees.isEmpty) node.tokens.map(_.token).mkString(" ") else subtrees.sortBy(_.indicesCoveredRecursively.min).mkString("(", " ", ")")
 }
 
 case class Token(token: String, index: Int) { override def toString = f"""Token("$token",$index)""" }
