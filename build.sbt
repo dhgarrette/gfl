@@ -2,7 +2,7 @@ import com.typesafe.sbt.SbtStartScript
 
 name := "gfl-scala"
 
-version := "0.0.1-SNAPSHOT"
+version := "0.0.2-SNAPSHOT"
 
 organization := "dhg"
 
