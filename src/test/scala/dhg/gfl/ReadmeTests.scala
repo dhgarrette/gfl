@@ -16,7 +16,7 @@ class ReadmeTests {
 		 */
 
     import dhg.gfl.Fudg._
-    import dhg.util._
+    import dhg.util.Util._
 
     val text = "The man walks a big dog ."
     val annotation = """
@@ -30,8 +30,6 @@ class ReadmeTests {
      * Read annotation from files:
      */
 
-    import dhg.util.CollectionUtil._
-    import dhg.util.FileUtil._
     import scalaz._, Scalaz._
 
     import dhg.gfl.Fudg._

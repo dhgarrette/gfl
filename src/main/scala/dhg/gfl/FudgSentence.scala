@@ -2,9 +2,8 @@ package dhg.gfl
 
 import scala.Vector
 
-import dhg.util.CollectionUtil._
-import dhg.util.Pattern._
-import dhg.util.viz.VizTree
+import dhg.util.Util._
+import dhg.util.viz._
 import scalaz.Scalaz._
 
 trait FudgSentence {

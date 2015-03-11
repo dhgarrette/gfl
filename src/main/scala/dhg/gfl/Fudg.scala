@@ -1,15 +1,11 @@
 package dhg.gfl
 
-import dhg.util.CollectionUtil._
-import dhg.util.FileUtil._
-import dhg.util.StringUtil._
-import dhg.util.Subprocess
-import dhg.util.viz.VizTree
+import dhg.util.Util._
+import dhg.util.viz._
 import scalaz._
 import Scalaz._
 import argonaut._
 import Argonaut._
-import dhg.util.viz.TreeViz
 import scala.annotation.tailrec
 
 /**
