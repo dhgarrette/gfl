@@ -2,7 +2,7 @@ package dhg.gfl
 
 import scala.Vector
 
-import dhg.util.Util._
+import dhg.util._
 import dhg.util.viz._
 import scalaz.Scalaz._
 

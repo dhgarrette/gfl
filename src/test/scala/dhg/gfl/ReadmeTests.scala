@@ -16,7 +16,7 @@ class ReadmeTests {
 		 */
 
     import dhg.gfl.Fudg._
-    import dhg.util.Util._
+    import dhg.util._
 
     val text = "The man walks a big dog ."
     val annotation = """

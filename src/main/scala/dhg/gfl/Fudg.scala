@@ -1,6 +1,6 @@
 package dhg.gfl
 
-import dhg.util.Util._
+import dhg.util._
 import dhg.util.viz._
 import scalaz._
 import Scalaz._

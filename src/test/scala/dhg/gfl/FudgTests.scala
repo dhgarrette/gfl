@@ -1,6 +1,6 @@
 package dhg.gfl
 
-import dhg.util.Util._
+import dhg.util._
 import org.junit.Assert._
 import org.junit.Test
 import scalaz._
