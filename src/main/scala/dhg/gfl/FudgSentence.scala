@@ -31,10 +31,15 @@ case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vect
 
   /**
    * The underspecified dependency trees representing this sentence.
+   * 
+   * NOTE: Automatically ignores self-loops!
    */
   lazy val fudgTree: FudgTree = {
-    val children = edges.map { case Edge(p, c, l) => (p.name, c.name) }.groupByKey
-    def makeTree(nodeName: String): FudgTree = FudgTree(nodes(nodeName), children.getOrElse(nodeName, Vector.empty).map(makeTree)) // .sortBy(_.tokens.map(_.index).min)
+    //sys.error("!!! fudgTree call")
+    val children = edges.map { case Edge(p, c, l) if p != c => (p.name, c.name) }.groupByKey
+    def makeTree(nodeName: String): FudgTree = {
+      FudgTree(nodes(nodeName), children.getOrElse(nodeName, Vector.empty).map(makeTree)) // .sortBy(_.tokens.map(_.index).min)
+    }
     val heads = (nodes.keySet -- children.values.flatten).toVector
     heads.map(makeTree) match {
       case Coll(tree) => tree
@@ -48,8 +53,11 @@ case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vect
    * A "bracket" is a pair (start,end) such that `sentence.tokens.slice(start,end)`
    * is a bracketed unit.
    *
-   * A bracket is an Fudg Expression or Multi-Word Expression node that covers
-   * a contiguous span of words.
+   * 1. A bracket can be a Fudg Expression or Multi-Word Expression node that
+   *    covers a contiguous span of words.
+   * 2. Alternatively, brackets may be extracted from unambiguous portions of
+   *    a dependency tree. This happens when a set of contiguous words are
+   *    connected in the tree without any FE nodes above them.
    */
   lazy val brackets: Set[(Int, Int)] = {
     def literalBrackets(t: FudgTree): Set[(Int, Int)] = {
@@ -135,6 +143,16 @@ case class Sentence(tokens: Vector[Token], nodes: Map[String, Node], edges: Vect
   }
 }
 
+object Sentence {
+  def fromDepIndices(words: Vector[String], deps: Vector[(Int, Int)]): FudgSentence = {
+    val tokens = words.zipWithIndex.mapt((w, i) => Token(w, i))
+    val nodes: Vector[Node] = tokens.map { case t @ Token(w, i) => WordNode(f"${w}_${i}", t) }
+    val nodeMap = nodes.map { case n @ WordNode(name, _) => name -> n }.toMap
+    val edges: Vector[Edge] = deps.map { case (parent, child) => Edge(nodes(parent), nodes(child), None) }
+    Sentence(tokens, nodeMap, edges)
+  }
+}
+
 case class FudgTree(node: Node, subtrees: Vector[FudgTree]) extends VizTree {
   def label = node.name
   def children = subtrees.sortBy(_.indicesCoveredRecursively.min)
@@ -147,8 +165,8 @@ case class FudgTree(node: Node, subtrees: Vector[FudgTree]) extends VizTree {
     assert(is.nonEmpty, f"$node  covers no indices!")
     is
   }
-  
-  override def toString = if(subtrees.isEmpty) node.tokens.map(_.token).mkString(" ") else subtrees.sortBy(_.indicesCoveredRecursively.min).mkString("(", " ", ")")
+
+  override def toString = if (subtrees.isEmpty) node.tokens.map(_.token).mkString(" ") else subtrees.sortBy(_.indicesCoveredRecursively.min).mkString("(", " ", ")")
 }
 
 case class Token(token: String, index: Int) { override def toString = f"""Token("$token",$index)""" }

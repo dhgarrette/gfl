@@ -73,7 +73,7 @@ object Fudg {
        * Map(
        *   "W(example~1)"    -> WordNode("W(example~1)", Token("example~1", 1)),
        *   "MW(still_at_it)" -> MweNode("MW(still_at_it)", Vector(Token("still", 2), Token("at", 3), Token("it", 4))),
-       *   "FE3"             -> FeNode("FE3))
+       *   "FE3"             -> FeNode("FE3"))
        */
       val WordRe = """W\((.+)\)""".r
       val MweRe = """MW\((.+)\)""".r
@@ -129,7 +129,7 @@ lines = [line.strip() for line in sys.stdin]
 tokens = lines[0].split()
 code = '\n'.join(lines[1:])
 try:
-    parse = gfl_parser.parse(tokens, code, check_semantics="""+{if (checkSemantics) "True" else "False"}+""")
+    parse = gfl_parser.parse(tokens, code, check_semantics=""" + { if (checkSemantics) "True" else "False" } + """)
     #view.desktop_open(view.draw(parse, 'x'))
     parseJ = parse.to_json()
     print(json.dumps(parseJ), sep='\t')
@@ -174,9 +174,9 @@ except gfl_parser.GFLError as e:
         } yield sentence).toVector
     }).toMap
   }
-  
+
   def emptyFromTokens(words: Vector[String]) {
-    val tokens = words.zipWithIndex.mapt ( (w,i) => Token(w,i) )
+    val tokens = words.zipWithIndex.mapt((w, i) => Token(w, i))
     val nodes = tokens.map { tok => val name = f"${tok.token}_${tok.index}"; name -> WordNode(name, tok) }.toMap
     Sentence(tokens, nodes, edges = Vector.empty[Edge])
   }
@@ -222,8 +222,8 @@ except gfl_parser.GFLError as e:
    *                     raise GFLError("Violates tree constraint: no root for node {}".format(repr(k)))
    * <code>
    */
-  def isSemanticallyValid(edges: Vector[Edge], throwOnFalse: Boolean = false): Boolean = {
-    val errors = semanticTreeErrors(edges)
+  def isSemanticallyValid(edges: Vector[Edge], ignoreSelfLoops: Boolean = false, ignoreMultipleParents: Boolean = false, throwOnFalse: Boolean = false): Boolean = {
+    val errors = semanticTreeErrors(edges, ignoreSelfLoops, ignoreMultipleParents)
     if (errors.nonEmpty && throwOnFalse)
       throw new RuntimeException(f"Tree constraint violations found:\n" + errors.map("    " + _).mkString("\n"))
     errors.isEmpty
@@ -232,19 +232,21 @@ except gfl_parser.GFLError as e:
   /**
    * Return a list of semantic tree errors.
    */
-  def semanticTreeErrors(edges: Vector[Edge]): Vector[String] = {
+  def semanticTreeErrors(edges: Vector[Edge], ignoreSelfLoops: Boolean = false, ignoreMultipleParents: Boolean = false): Vector[String] = {
     val b = collection.mutable.Buffer[String]()
 
-    val parents = edges.collect { case Edge(parent, child, label) if !label.exists(Set("Anaph", "fe*", "fe")) => child -> parent }.distinct.groupByKey
-    val multipleParents = parents.filter(_._2.size > 1)
-    multipleParents.foreach {
-      case (child, parents) =>
-        b.append(f"node ${child.name} has multiple parents: ${parents.map(_.name)}\n")
+    val parents = edges.collect { case Edge(parent, child, label) if !label.exists(Set("Anaph", "fe*", "fe")) && (!ignoreSelfLoops || parent != child) => child -> parent }.distinct.groupByKey
+    if (!ignoreMultipleParents) {
+      val multipleParents = parents.filter(_._2.size > 1)
+      multipleParents.foreach {
+        case (child, parents) =>
+          b.append(f"node ${child.name} has multiple parents: ${parents.map(_.name)}")
+      }
     }
 
-    val cycles = findCycle(edges.collect { case Edge(parent, child, _) => (parent, child) }.distinct)
+    val cycles = findCycle(edges.collect { case Edge(parent, child, _) if !ignoreSelfLoops || parent != child => (parent, child) }.distinct)
     cycles.foreach { cycle =>
-      b.append(f"cycle found involving nodes: ${cycles.map(_.map(_.name)).mkString(", ")}\n")
+      b.append(f"cycle found involving nodes: ${cycles.map(_.map(_.name)).mkString(", ")}")
     }
 
     if (parents.exists(_._1.name == "**")) {
@@ -261,11 +263,31 @@ except gfl_parser.GFLError as e:
           Vector(Set(b, a))
         }
         else {
-          val linkedToByB = otherLinks.collect { case (`b`, c) => c }
-          findCycle(otherLinks ++ linkedToByB.map(a -> _))
+          // replace 'b' links with 'a's
+          findCycle(otherLinks ++ otherLinks.collect { case (`b`, c) => a -> c })
         }
       case _ => Vector()
     }
+  }
+
+  def edgesToGraphViz(edges: Vector[Edge]): String = {
+    def nodeString(n: Node): String = {
+      s""""${n.name}""""
+    }
+    def edgeString(edge: Edge, color: Option[String] = None): String = {
+      nodeString(edge.parent) + " -> " + nodeString(edge.child) +
+        edge.label.fold("") { c => f"""  [ label = "${c}" ]""" } +
+        color.fold("") { c => f"""  [ color = "$c" ]""" } +
+        """  [samehead=true, sametail=true]"""
+    }
+    val allnodes = edges.flatMap { case Edge(p, c, _) => Vector(p, c) }
+    val sb = new StringBuilder
+    sb ++= "digraph {\n"
+    //sb ++= "  graph [splines=ortho];\n"
+    for ((n, i) <- allnodes.zipWithIndex) { sb ++= ("  " + nodeString(n) + f"""  [shape=box] [ pos="${i * 1.5},5!" ]""" + "\n") }
+    for (e <- edges) { sb ++= ("  " + edgeString(e) + "\n") }
+    sb ++= "}"
+    sb.toString
   }
 
 }
